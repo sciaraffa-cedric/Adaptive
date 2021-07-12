@@ -98,15 +98,24 @@ namespace Adaptive
 
                 foreach (Pawn pawn in target.PlayerPawnsForStoryteller)
                 {
-                    float num3 = 0f;
                     int col = 0;
-                    float relevance = 0f;
                     float coeff = 0f;
                     float BodySize = 1f;
+                    float relevance = 0f;
+
+                    if (pawn.IsQuestLodger())
+                    {
+                        continue;
+                    }
+                    float num3 = 0f;
 
                     if (pawn.IsFreeColonist)
                     {
-                        relevance = pawn.records.StoryRelevance / 40000; //modification des valeurs <1 par transformation exp
+                        // relevance = pawn.records.storyRelevance / 40000; 
+                        // modification des valeurs <1 par transformation exp storyRelevance vs LastBattleTick == battleExitTick
+                        relevance = pawn.records.GetAsInt(RecordDefOf.TimeAsColonistOrColonyAnimal) * 144 / 40000; 
+                        // 150 000 storyrelevance at year 6 (ticks = 6 * 3 600 000) - 24h 60 000 ticks - 1y 60 days
+
                         BodySize = pawn.BodySize;
                         coeff = (3.6f / (1f + Mathf.Exp((4f - relevance) / 2)) + 0.5f);
 
