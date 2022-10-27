@@ -17,6 +17,7 @@ namespace Adaptive
 {
     class Adaptive : Mod
     {
+        public static AdaptiveSettings Settings;
 
         public static bool ForceUpdate = false;
         public static float? CachedPoints = null;
@@ -24,14 +25,21 @@ namespace Adaptive
 
         public Adaptive(ModContentPack content) : base(content)
         {
+            Settings = GetSettings<AdaptiveSettings>();
+
             var harmony = new Harmony("com.RimWorld.Adaptive");
             harmony.PatchAll(Assembly.GetExecutingAssembly());
         }
 
-        /*public override string SettingsCategory()
+        public override void DoSettingsWindowContents(Rect inRect)
+        {
+            Settings.DoWindowContents(inRect);
+        }
+
+        public override string SettingsCategory()
         {
             return "Adaptive Threats";
-        }*/
+        }
 
         [StaticConstructorOnStartup]
         public static class Main
@@ -92,8 +100,7 @@ namespace Adaptive
                 {
                     int col = 0;
                     float coeff = 0f;
-                    float AgePts = 1f;
-                    //float BodySize = 1f;
+                    float BodySize = 1f;
                     float relevance = 0f;
 
                     if (pawn.IsQuestLodger())
@@ -109,31 +116,27 @@ namespace Adaptive
                         relevance = pawn.records.GetAsInt(RecordDefOf.TimeAsColonistOrColonyAnimal) / (144f * 40000f);
                         // 150 000 storyrelevance at year 6 (ticks = 6 * 3 600 000) - 24h 60 000 ticks - 1y 60 days
 
+                        BodySize = pawn.BodySize;
                         coeff = (3.6f / (1f + Mathf.Exp((4f - relevance) / 2)) + 0.5f);
 
-                        /*switch (Settings.systemToUse)
+                        switch (Settings.systemToUse)
                         {
                             case AdaptiveSettings.SystemToUseEnum.Low: num3 = Adaptive.PointsPerColonistByWealthCurve2.Evaluate(vanillaWealth) * coeff; break;
                             case AdaptiveSettings.SystemToUseEnum.Default: num3 = Adaptive.PointsPerColonistByWealthCurve.Evaluate(vanillaWealth) * coeff; break;
                             case AdaptiveSettings.SystemToUseEnum.High: num3 = Adaptive.PointsPerColonistByWealthCurve3.Evaluate(vanillaWealth) * coeff; break;
                             default: num3 = Adaptive.PointsPerColonistByWealthCurve.Evaluate(vanillaWealth) * coeff; break;
-                        }*/
+                        }
 
-                        num3 = Adaptive.PointsPerColonistByWealthCurve.Evaluate(vanillaWealth) * coeff;
-
-                        // BodySize = pawn.BodySize;
-                        // num3 *= BodySize;
-
+                        num3 *= BodySize;
                         // num3 = 20f; //TEST --- sortie ASSEMBLIES
 
+                        // Adaptive.PointsPerColonistByWealthCurve.Evaluate(vanillaWealth) * coeff;
                         col += 1;
 
                         if (target is Caravan)
                         {
                             num3 *= 1f; // instead of 1.2 v1.4
                         }
-
-                        // num2 += num3; erreur ajout double num3 à num2
                     }
 
                     else if (pawn.RaceProps.Animal && pawn.Faction == Faction.OfPlayer && !pawn.Downed && pawn.training.CanAssignToTrain(TrainableDefOf.Release).Accepted)
@@ -152,18 +155,9 @@ namespace Adaptive
                         {
                             num3 *= 0.3f;
                         }
-                        if (pawn.IsSlaveOfColony)
-                        {
-                            num3 *= 0.5f; // .75f vanilla
-                        }
-                        if (pawn.Downed)
+                        else if (pawn.Downed)
                         {
                             num3 *= 0f;
-                        }
-                        if (ModsConfig.BiotechActive && pawn.RaceProps.Humanlike)
-                        {
-                            AgePts = Adaptive.PointsFactorForPawnAgeYearsCurve.Evaluate(pawn.ageTracker.AgeBiologicalYearsFloat);
-                            num3 *= AgePts;
                         }
 
                         num3 = Mathf.Lerp(num3, num3 * pawn.health.summaryHealth.SummaryHealthPercent, 0.15f);
@@ -184,15 +178,13 @@ namespace Adaptive
                 //modification du point / colon
                 float finalPoints;
 
-                /*switch (Settings.systemToUse)
+                switch (Settings.systemToUse)
                 {
                     case AdaptiveSettings.SystemToUseEnum.Low: finalPoints = num2 * 0.5f; break;
                     case AdaptiveSettings.SystemToUseEnum.Default: finalPoints = num2; break;
                     case AdaptiveSettings.SystemToUseEnum.High: finalPoints = num2 * 1.5f; break;
                     default: finalPoints = num2; break;
-                }*/
-
-                finalPoints = num2;
+                }
 
                 // float num4 = adaptiveWealthPoints + finalPoints * UnityEngine.Random.Range(0.9f, 1.1f);
                 float num4 = adaptiveWealthPoints + finalPoints; // TEST
@@ -203,9 +195,9 @@ namespace Adaptive
                 num4 *= num5;
 
                 //remove difficulty scale -> fixed 100% threat scale for quests in custom storyteller 
-                num4 *= Find.Storyteller.difficulty.threatScale;
-                //num4 *= 2.2f; // losing is fun
+                //num4 *= Find.Storyteller.difficulty.threatScale;
 
+                num4 *= 2.2f; // losing is fun
                 num4 *= target.IncidentPointsRandomFactorRange.RandomInRange;
                 num4 *= Find.Storyteller.def.pointsFactorFromDaysPassed.Evaluate((float)GenDate.DaysPassed);
                 num4 *= num6;
@@ -287,13 +279,6 @@ namespace Adaptive
             }
         };
 
-        private static readonly SimpleCurve PointsFactorForPawnAgeYearsCurve = new SimpleCurve
-    {
-        new CurvePoint(3f, 0f),
-        new CurvePoint(13f, 0.5f),
-        new CurvePoint(18f, 1f)
-    };
-
         private static readonly SimpleCurve PointsPerColonistByWealthCurve3 = new SimpleCurve
         {
             {
@@ -314,6 +299,62 @@ namespace Adaptive
             }
         };
 
-   }
+        public class AdaptiveSettings : ModSettings
+        {
+            public enum SystemToUseEnum
+            {
+                Low = 0,
+                Default = 1,
+                High = 2,
+            }
+
+            public SystemToUseEnum systemToUse = SystemToUseEnum.Default;
+
+            public override void ExposeData()
+            {
+                base.ExposeData();
+                Scribe_Values.Look(ref systemToUse, "systemToUse", SystemToUseEnum.Default);
+
+            }
+
+            public void DoWindowContents(Rect inRect)
+            {
+                var list = new Listing_Standard { ColumnWidth = (inRect.width - 34f) / 1.5f };
+                list.Begin(inRect);
+                list.Gap(12f);
+
+                list.ColumnWidth = inRect.width - 24f;
+
+                //var list2 = new Listing_Standard { ColumnWidth = (inRect.width - 24f) };
+                //list.Begin(inRect);
+                //list.Gap(12f);
+
+                string medium = "Default";
+                string low = "Chill";
+                string high = "Hardcore";
+                string current;
+                switch (systemToUse)
+                {
+                    case SystemToUseEnum.Default: current = medium; break;
+                    case SystemToUseEnum.Low: current = low; break;
+                    case SystemToUseEnum.High: current = high; break;
+                    default: current = "???"; break;
+                }
+
+                if (list.ButtonTextLabeled("Difficulty", current))
+                {
+                    List<FloatMenuOption> list5 = new List<FloatMenuOption>();
+
+                    list5.Add(new FloatMenuOption(medium, delegate () { systemToUse = SystemToUseEnum.Default; }, MenuOptionPriority.Default, null, null, 0f, null, null));
+                    list5.Add(new FloatMenuOption(low, delegate () { systemToUse = SystemToUseEnum.Low; }, MenuOptionPriority.Default, null, null, 0f, null, null));
+                    list5.Add(new FloatMenuOption(high, delegate () { systemToUse = SystemToUseEnum.High; }, MenuOptionPriority.Default, null, null, 0f, null, null));
+
+                    Find.WindowStack.Add(new FloatMenu(list5));
+                }
+
+                list.End();
+            }
+        }
+    }
 }
 
